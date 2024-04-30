@@ -1,5 +1,7 @@
 import json
 
+from src.tools import show_log_base
+
 
 def clean_error(results):
     cleaned_results = []
@@ -26,15 +28,20 @@ def write_dataset_sharegpt(
         print("ling-data: Try to use the minimum number of data")
 
     for human_data, gpt_data in zip(human_datas, gpt_datas):
+        human_parts = [human_source_tag, human_data, human_output_tag]
+        human_conversation_part = "\n".join([part for part in human_parts if part is not None])
+
+        gpt_conversation_part = f"{gpt_tag}\n{gpt_data}" if gpt_tag else gpt_data
+
         conversation = {
             "conversations": [
                 {
                     "from": "human",
-                    "value": f"{human_source_tag}\n{human_data}\n{human_output_tag}"  # 可调整
+                    "value": human_conversation_part.strip()  # 可调整
                 },
                 {
                     "from": "gpt",
-                    "value": f"{gpt_tag}\n{gpt_data}"  # 可调整
+                    "value": gpt_conversation_part.strip()  # 可调整
                 }
             ],
             "system": system
@@ -209,9 +216,7 @@ def dataset_sharegpt(worker_dict):
     if output_path is not None:
         save_dataset(results[0], output_path)
 
-    print("dataset_sharegpt预览结果：")
-    print(results[0][0][0])
-    print("-----------------------------------------------------------------------------------------------------------")
+    show_log_base(worker_dict, results[0][0][0], worker_dict['name'])
 
     return results
 

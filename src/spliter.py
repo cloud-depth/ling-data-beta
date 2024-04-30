@@ -1,5 +1,7 @@
 import re
 import tiktoken
+import os
+from src.tools import show_log_base
 
 
 def extract_chapters(
@@ -96,9 +98,9 @@ def strong_divide(s):
 
 
 def split_chunk(
-        chapters,
+        text,
         max_token_len=1500,
-        add_preface=False
+        add_preface=True
 ):
     enc = tiktoken.get_encoding("cl100k_base")
 
@@ -108,9 +110,9 @@ def split_chunk(
 
     chunk_text = []
 
-    for chapter in chapters[start:]:
+    for chapter in text[start:]:
 
-        chapter = chapter[1]
+        # chapter = chapter[1]
 
         split_text = chapter.split('\n')
 
@@ -174,6 +176,11 @@ def split_chunk(
 
 
 def spliter_novel(worker_dict):
+    """
+    已弃用，将在v0.0.4中删除
+    :param worker_dict:
+    :return:
+    """
     source_list = worker_dict.get('source')
     results = []
 
@@ -197,10 +204,65 @@ def spliter_novel(worker_dict):
     return results
 
 
+def spliter_chapter(worker_dict):
+    source_list = worker_dict.get('source')
+    results = []
+
+    if source_list is None:
+        raise ValueError("No source provided for spliter_chapter")
+
+    args = worker_dict.get('args')
+    if args is not None:
+        pattern = args.get('pattern', None)
+    else:
+        pattern = None
+
+    for source in source_list:
+        if source not in worker_dict['data']:
+            raise ValueError(f"Source {source} not found in data")
+        else:
+            for data in worker_dict['data'][source]:
+                chapters = extract_chapters(data, pattern)
+                results.append(chapters)
+
+    show_log_base(worker_dict, results[0][0], worker_dict['name'])
+
+    return results
+
+
+def spliter_len(worker_dict):
+    source_list = worker_dict.get('source')
+    results = []
+
+    if source_list is None:
+        raise ValueError("No source provided for spliter_len")
+
+    args = worker_dict.get('args')
+    if args is not None:
+        max_token_len = worker_dict['args'].get('max_token_len', 1500)
+        add_preface = worker_dict['args'].get('preface', False)
+    else:
+        max_token_len = 1500
+        add_preface = False
+
+    for source in source_list:
+        if source not in worker_dict['data']:
+            raise ValueError(f"Source {source} not found in data")
+        else:
+            for data in worker_dict['data'][source]:
+                results.append(split_chunk(data, max_token_len, add_preface))
+
+    show_log_base(worker_dict, results[0][0], worker_dict['name'])
+
+    return results
+
+
 SPLITER_DICT = {
-    "spliter_novel": spliter_novel
+    "spliter_novel": spliter_novel,
+    "spliter_chapter": spliter_chapter,
+    "spliter_len": spliter_len,
 }
 
 
 def get_spliter(spliter_name):
-    return SPLITER_DICT.get(spliter_name)
+    return SPLITER_DICT[spliter_name]
