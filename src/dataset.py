@@ -20,7 +20,8 @@ def write_dataset_sharegpt(
         gpt_datas,
         human_source_tag=None,
         human_output_tag=None,
-        gpt_tag=None
+        gpt_tag=None,
+        instruction=None,
 ):
     converted_data = []
     if len(human_datas) != len(gpt_datas):
@@ -28,8 +29,8 @@ def write_dataset_sharegpt(
         print("ling-data: Try to use the minimum number of data")
 
     for human_data, gpt_data in zip(human_datas, gpt_datas):
-        human_parts = [human_source_tag, human_data, human_output_tag]
-        human_conversation_part = "\n".join([part for part in human_parts if part is not None])
+        human_parts = [instruction, human_source_tag, human_data, human_output_tag]
+        human_conversation_part = "\n\n".join([part for part in human_parts if part is not None])
 
         gpt_conversation_part = f"{gpt_tag}\n{gpt_data}" if gpt_tag else gpt_data
 
@@ -194,6 +195,7 @@ def dataset_sharegpt(worker_dict):
         human_source_tag = human_conversation.get('source_tag')
         human_output_tag = human_conversation.get('output_tag')
         gpt_tag = gpt_conversation.get('output_tag')
+        instruction = worker_dict['args'].get('instruction')
 
         converted_data.append(
             write_dataset_sharegpt(
@@ -202,7 +204,8 @@ def dataset_sharegpt(worker_dict):
                 gpt_datas=gpt_datas,
                 human_source_tag=human_source_tag,
                 human_output_tag=human_output_tag,
-                gpt_tag=gpt_tag
+                gpt_tag=gpt_tag,
+                instruction=instruction
             )
         )
 
