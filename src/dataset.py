@@ -62,6 +62,19 @@ def save_dataset(converted_data, output_path):
         return converted_data
 
 
+def save_dataset_jsonl(converted_data, output_path):
+    if output_path is not None:
+        if not output_path.endswith('.jsonl'):
+            output_path += '.jsonl'
+        with open(output_path, 'w', encoding='utf-8') as f:
+            for entry in converted_data:
+                # 将字典转换为JSON字符串，并写入文件，每个JSON对象后面跟一个换行符
+                json_string = json.dumps(entry, ensure_ascii=False)
+                f.write(json_string + '\n')
+    else:
+        return converted_data
+
+
 def align_data(human_datas, gpt_datas):
     if len(human_datas) != len(gpt_datas):
         raise ValueError("The number of human data and gpt data is not equal")
@@ -212,14 +225,14 @@ def dataset_sharegpt(worker_dict):
     if len(converted_data) > 1:
         converted_data = merge_convert_data_to_multiple_rounds(converted_data)
 
-    results.append(converted_data)
+    results.append(converted_data[0])
 
     output_path = worker_dict.get('output_path')
 
     if output_path is not None:
         save_dataset(results[0], output_path)
 
-    show_log_base(worker_dict, results[0][0][0], worker_dict['name'])
+    show_log_base(worker_dict, results[0][0], worker_dict['name'])
 
     return results
 
