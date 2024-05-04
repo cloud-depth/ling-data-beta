@@ -208,7 +208,7 @@ def dataset_sharegpt(worker_dict):
         human_source_tag = human_conversation.get('source_tag')
         human_output_tag = human_conversation.get('output_tag')
         gpt_tag = gpt_conversation.get('output_tag')
-        instruction = worker_dict['args'].get('instruction')
+        instruction = human_conversation.get('instruction')
 
         converted_data.append(
             write_dataset_sharegpt(
