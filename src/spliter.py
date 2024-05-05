@@ -1,4 +1,6 @@
 import re
+
+import numpy as np
 import tiktoken
 import os
 from src.tools import show_log_base
@@ -99,10 +101,13 @@ def strong_divide(s):
 
 def split_chunk(
         text,
-        max_token_len=1500,
-        add_preface=True
+        max_token_len: int = 1500,
+        add_preface: bool = True,
+        merge_min: int = 50,
+        tokenizer: str = "qwen",
 ):
-    enc = tiktoken.get_encoding("cl100k_base")
+    from src.tools import TokenLen
+    tokenizer_len = TokenLen(encoding=tokenizer)
 
     start = 1
     if add_preface:
@@ -122,7 +127,7 @@ def split_chunk(
         tmp = []
 
         for line in split_text:
-            line_len = len(enc.encode(line))
+            line_len = tokenizer_len(line)
 
             if line_len <= max_token_len - 5:
                 tmp.append(line)
@@ -135,8 +140,8 @@ def split_chunk(
                     my_str = path.pop()
                     left, right = strong_divide(my_str)
 
-                    len_left = len(enc.encode(left))
-                    len_right = len(enc.encode(right))
+                    len_left = tokenizer_len(left)
+                    len_right = tokenizer_len(right)
 
                     if len_left > max_token_len - 15:
                         path.append(left)
@@ -154,7 +159,7 @@ def split_chunk(
         split_text = tmp
 
         for line in split_text:
-            line_len = len(enc.encode(line))
+            line_len = tokenizer_len(line)
 
             if line_len > max_token_len:
                 print('warning line_len = ', line_len)
@@ -172,36 +177,113 @@ def split_chunk(
         if curr_chunk:
             chunk_text.append(curr_chunk)
 
+    def merge_short_texts(text_list, min_len):
+        i = 0
+        while i < len(text_list):
+            if i > 0 and tokenizer_len(text_list[i]) < min_len:
+                text_list[i - 1] += text_list[i]
+                text_list.pop(i)
+            else:
+                i += 1
+        return text_list
+
+    chunk_text = merge_short_texts(chunk_text, merge_min)
+
     return chunk_text
 
 
-def spliter_novel(worker_dict):
-    """
-    已弃用，将在v0.0.4中删除
-    :param worker_dict:
-    :return:
-    """
-    source_list = worker_dict.get('source')
-    results = []
+def split_chunk_dist(
+        text,
+        dist_arg1=100,
+        dist_arg2=300,
+        add_preface=True,
+        merge_min: int = 50,
+        distribution='uniform',
+        tokenizer: str = "qwen",
+):
+    # from src.tools import tokenizer_len
+    from src.tools import TokenLen
+    tokenizer_len = TokenLen(encoding=tokenizer)
 
-    if source_list is None:
-        raise ValueError("No source provided for spliter_novel")
+    if distribution == 'normal':
+        dist_func = np.random.normal
+    elif distribution == 'uniform':
+        dist_func = np.random.uniform
+    else:
+        raise ValueError(f"Invalid distribution type: {distribution}")
 
-    for source in source_list:
-        if source not in worker_dict['data']:
-            raise ValueError(f"Source {source} not found in data")
-        else:
-            for data in worker_dict['data'][source]:
-                chapters = extract_chapters(data)
-                max_token_len = worker_dict['args'].get('max_token_len', 1500)
-                add_preface = worker_dict['args'].get('preface', False)
-                results.append(split_chunk(chapters, max_token_len, add_preface))
+    start = 0 if add_preface else 1
+    chunk_text = []
 
-    print("spliter_novel预览结果：")
-    print(results[0][0])
-    print("-----------------------------------------------------------------------------------------------------------")
+    for chapter in text[start:]:
+        split_text = chapter.split('\n')
+        curr_len = 0
+        curr_chunk = ''
+        tmp = []
 
-    return results
+        for line in split_text:
+            line_len = tokenizer_len(line)
+            # 动态确定本次的最大长度
+            max_token_len = int(dist_func(dist_arg1, dist_arg2))
+            # 确保max_token_len不小于一定值，比如500
+            max_token_len = max(max_token_len, 100)
+
+            if line_len <= max_token_len - 5:
+                tmp.append(line)
+            else:
+                path = [line]
+                tmp_res = []
+
+                while path:
+                    my_str = path.pop()
+                    left, right = strong_divide(my_str)
+
+                    len_left = tokenizer_len(left)
+                    len_right = tokenizer_len(right)
+
+                    if len_left > max_token_len - 15:
+                        path.append(left)
+                    else:
+                        tmp_res.append(left)
+
+                    if len_right > max_token_len - 15:
+                        path.append(right)
+                    else:
+                        tmp_res.append(right)
+
+                tmp.extend(tmp_res)
+
+        split_text = tmp
+
+        for line in split_text:
+            line_len = tokenizer_len(line)
+            max_token_len = int(dist_func(dist_arg1, dist_arg2))
+            max_token_len = max(max_token_len, 100)
+
+            if curr_len + line_len <= max_token_len:
+                curr_chunk += line + '\n'
+                curr_len += line_len + 1
+            else:
+                chunk_text.append(curr_chunk)
+                curr_chunk = line + '\n'
+                curr_len = line_len + 1
+
+        if curr_chunk:
+            chunk_text.append(curr_chunk)
+
+    def merge_short_texts(text_list, min_len):
+        i = 0
+        while i < len(text_list):
+            if i > 0 and tokenizer_len(text_list[i]) < min_len:
+                text_list[i - 1] += text_list[i]
+                text_list.pop(i)
+            else:
+                i += 1
+        return text_list
+
+    chunk_text = merge_short_texts(chunk_text, merge_min)
+
+    return chunk_text
 
 
 def spliter_chapter(worker_dict):
@@ -241,16 +323,80 @@ def spliter_len(worker_dict):
     if args is not None:
         max_token_len = worker_dict['args'].get('max_token_len', 1500)
         add_preface = worker_dict['args'].get('preface', False)
+        min_len = worker_dict['args'].get('min_len', 50)
+        tokenizer = worker_dict['args'].get('tokenizer', 'qwen')
     else:
         max_token_len = 1500
         add_preface = False
+        min_len = 50
+        tokenizer = 'qwen'
 
     for source in source_list:
         if source not in worker_dict['data']:
             raise ValueError(f"Source {source} not found in data")
         else:
             for data in worker_dict['data'][source]:
-                results.append(split_chunk(data, max_token_len, add_preface))
+                results.append(split_chunk(
+                    text=data,
+                    max_token_len=max_token_len,
+                    add_preface=add_preface,
+                    min_len=min_len,
+                    tokenizer=tokenizer
+                ))
+
+    show_log_base(worker_dict, results[0][0], worker_dict['name'])
+
+    return results
+
+
+def spliter_distribution(worker_dict):
+    source_list = worker_dict.get('source')
+    results = []
+
+    if source_list is None:
+        raise ValueError("No source provided for spliter_len")
+
+    args = worker_dict.get('args')
+    if args is not None:
+        max_token_range = worker_dict['args'].get('max_token_range', [100, 500])
+        add_preface = worker_dict['args'].get('preface', False)
+        distribution = worker_dict['args'].get('distribution', 'uniform')
+        min_len = worker_dict['args'].get('min_len', 50)
+        tokenizer = worker_dict['args'].get('tokenizer', 'qwen')
+
+        if distribution == 'normal':
+            dist_arg1 = int(np.mean(max_token_range))
+            dist_arg2 = int(np.std(max_token_range))
+
+        elif distribution == 'uniform':
+            dist_arg1 = int(max_token_range[0])
+            dist_arg2 = int(max_token_range[1])
+
+        else:
+            raise ValueError(f"Invalid distribution type: {distribution}")
+
+    else:
+        dist_arg1 = 100
+        dist_arg2 = 500
+        add_preface = False
+        distribution = 'uniform'
+        min_len = 50
+        tokenizer = 'qwen'
+
+    for source in source_list:
+        if source not in worker_dict['data']:
+            raise ValueError(f"Source {source} not found in data")
+        else:
+            for data in worker_dict['data'][source]:
+                results.append(split_chunk_dist(
+                    text=data,
+                    dist_arg1=dist_arg1,
+                    dist_arg2=dist_arg2,
+                    add_preface=add_preface,
+                    distribution=distribution,
+                    merge_min=min_len,
+                    tokenizer=tokenizer
+                ))
 
     show_log_base(worker_dict, results[0][0], worker_dict['name'])
 
@@ -258,9 +404,9 @@ def spliter_len(worker_dict):
 
 
 SPLITER_DICT = {
-    "spliter_novel": spliter_novel,
     "spliter_chapter": spliter_chapter,
     "spliter_len": spliter_len,
+    "spliter_distribution": spliter_distribution,
 }
 
 
