@@ -16,14 +16,15 @@ sys.path.append(project_root)
 DEFAULT_CONFIG_DICT = {
     "SAVE_ROOT": "data/saves",
     "DATA_ROOT": "data",
-    "LLM_API_BASE": "http://192.168.31.10:8444/v1",
+    "LLM_API_BASE": "https://ling-api.com/v1",
     "LLM_API_KEY": "0",
-    "SHOW_LOG": False,
-    "SAVE_LOG": False,
-    "SAVE_ARGS": False,
+    "SHOW_LOG": True,
+    "SAVE_RESULTS": True,
+    "SAVE_ARGS": True,
     "PROJECT_NAME": str(formatted_date),
     "SEPERATOR": "⫘",
-    "VERSION": "0.0.3",
+    "VERSION": "0.0.4 beta",
+    "OVERWRITE": False,
 }
 
 
@@ -41,10 +42,11 @@ def welcome():
     print(f"模型API地址：{os.getenv('LLM_API_BASE')}")
     print(f"模型API密钥：{os.getenv('LLM_API_KEY')}")
     print(f"是否显示日志：{os.getenv('SHOW_LOG')}")
-    print(f"是否保存日志：{os.getenv('SAVE_LOG')}")
-    print(f"是否保存参数：{os.getenv('SAVE_ARGS')}")
+    print(f"是否保存结果：{os.getenv('SAVE_RESULTS')}")
+    print(f"是否保存参数文件：{os.getenv('SAVE_ARGS')}")
     print(f"分隔符：{os.getenv('SEPERATOR')}")
     print(os.getenv('SEPERATOR') * 50)
+    print(f"是否覆盖结果：{os.getenv('OVERWRITE')}")
 
 
 class LingData:
@@ -245,6 +247,11 @@ class LingData:
             dir_path = os.path.join(save_dir, project_name)
             if not os.path.exists(save_dir):
                 os.makedirs(dir_path)
+            else:
+                if os.getenv('OVERWRITE') == 'true':
+                    os.environ['SAVE_DIR'] = dir_path
+                else:
+                    raise FileExistsError(f"{dir_path}已存在。请设置OVERWRITE为true以覆盖")
             os.environ['SAVE_DIR'] = dir_path
         else:
             pass
