@@ -205,15 +205,33 @@ class LingData:
         print(f"已全部运行完成")
         return self.workers_dict
 
+    @ staticmethod
+    def preprocess_results(results):
+        # 处理整个列表，确保每个元素都被转换
+        processed_results = []
+        for sublist in results:
+            # 创建一个新的子列表以存储处理后的元素
+            new_sublist = []
+            for item in sublist:
+                if isinstance(item, tuple):
+                    new_sublist.append(list(item))
+                elif isinstance(item, Exception):
+                    new_sublist.append({"exception": str(item)})
+                else:
+                    new_sublist.append(item)
+            processed_results.append(new_sublist)
+        return processed_results
+
     def save_result(self, worker):
         save_dir = os.getenv('SAVE_DIR')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
         results = self.workers_dict[worker]['results']
+        preprocess_results = self.preprocess_results(results)
         save_path = os.path.join(save_dir, f"{worker}.json")
         with open(save_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=4)
+            json.dump(preprocess_results, f, ensure_ascii=False, indent=4)
         print(f"{worker}结果已保存至{save_dir}")
 
     def save_results(self):
