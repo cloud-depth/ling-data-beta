@@ -214,9 +214,25 @@ class LingData:
             new_sublist = []
             for item in sublist:
                 if isinstance(item, tuple):
-                    new_sublist.append(list(item))
+                    # 转换元组中的每一个元素
+                    processed_item = []
+                    for subitem in item:
+                        if isinstance(subitem, Exception):
+                            processed_item.append("Exception: " + str(subitem))
+                        else:
+                            processed_item.append(subitem)
+                    new_sublist.append(processed_item)
+                elif isinstance(item, list):
+                    # 同样需要检查列表中的每个元素
+                    processed_list = []
+                    for list_item in item:
+                        if isinstance(list_item, Exception):
+                            processed_list.append("Exception: " + str(list_item))
+                        else:
+                            processed_list.append(list_item)
+                    new_sublist.append(processed_list)
                 elif isinstance(item, Exception):
-                    new_sublist.append({"exception": str(item)})
+                    new_sublist.append("Exception: " + str(item))
                 else:
                     new_sublist.append(item)
             processed_results.append(new_sublist)
