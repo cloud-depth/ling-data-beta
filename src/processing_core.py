@@ -45,8 +45,8 @@ def welcome():
     print(f"是否保存结果：{os.getenv('SAVE_RESULTS')}")
     print(f"是否保存参数文件：{os.getenv('SAVE_ARGS')}")
     print(f"分隔符：{os.getenv('SEPERATOR')}")
-    print(os.getenv('SEPERATOR') * 50)
     print(f"是否覆盖结果：{os.getenv('OVERWRITE')}")
+    print(os.getenv('SEPERATOR') * 50)
 
 
 class LingData:
@@ -245,7 +245,7 @@ class LingData:
         if save_args or save_results or save_result == 'true':
             project_name = os.getenv('PROJECT_NAME')
             dir_path = os.path.join(save_dir, project_name)
-            if not os.path.exists(save_dir):
+            if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
             else:
                 if os.getenv('OVERWRITE') == 'true':
