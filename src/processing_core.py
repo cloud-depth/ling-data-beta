@@ -4,7 +4,6 @@ import sys
 from datetime import datetime
 import copy
 
-
 # 获取当前时间的时间戳
 timestamp = datetime.now().timestamp()
 dt_object = datetime.fromtimestamp(timestamp)
@@ -23,7 +22,7 @@ DEFAULT_CONFIG_DICT = {
     "SAVE_ARGS": True,
     "PROJECT_NAME": str(formatted_date),
     "SEPERATOR": "⫘",
-    "VERSION": "0.0.4 beta",
+    "VERSION": "0.0.4 beta 05090105",
     "OVERWRITE": False,
 }
 
@@ -136,7 +135,7 @@ class LingData:
                     print(f"读取{processor}错误：", e)
 
             elif processor.split('_')[0] == 'environ':
-                pass
+                workers_dict[key]['processor'] = 'no_run'
 
             else:
                 raise KeyError(f"未注册{processor}")
@@ -157,6 +156,8 @@ class LingData:
 
     def run(self, worker):
         processor = self.workers_dict[worker]['processor']
+        if processor == 'no_run':
+            return self.workers_dict[worker]
         source = self.workers_dict[worker].get('source')
 
         if source:
