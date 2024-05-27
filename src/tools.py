@@ -19,6 +19,7 @@ class TokenLen:
             "qwen": "data/source/tokenizer/tokenizer_qwen.json",
             "gpt": "data/source/tokenizer/tokenizer_gpt.json",
             "gpt4o": "data/source/tokenizer/tokenizer_gpt4o.json",
+            "claude": "data/source/tokenizer/tokenizer_claude.json",
             # 可拓展
         }
         tokenizer_path = os.path.join(self.project_root, tokenizer_path_dict.get(self.encoding))
