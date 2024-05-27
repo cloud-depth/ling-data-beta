@@ -3,6 +3,7 @@ import os
 import sys
 from datetime import datetime
 import copy
+import logging
 
 # 获取当前时间的时间戳
 timestamp = datetime.now().timestamp()
@@ -32,20 +33,23 @@ def set_default_environ():
         os.environ[key] = str(value).lower()
 
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 def welcome():
-    print(f"欢迎使用LingData v{DEFAULT_CONFIG_DICT['VERSION']}")
-    print(f"当前时间：{formatted_date}")
-    print(f"项目名称：{os.getenv('PROJECT_NAME')}")
-    print(f"数据保存路径：{os.getenv('SAVE_DIR')}")
-    print(f"数据源路径：{os.getenv('DATA_ROOT')}")
-    print(f"模型API地址：{os.getenv('LLM_API_BASE')}")
-    print(f"模型API密钥：{os.getenv('LLM_API_KEY')}")
-    print(f"是否显示日志：{os.getenv('SHOW_LOG')}")
-    print(f"是否保存结果：{os.getenv('SAVE_RESULTS')}")
-    print(f"是否保存参数文件：{os.getenv('SAVE_ARGS')}")
-    print(f"分隔符：{os.getenv('SEPERATOR')}")
-    print(f"是否覆盖结果：{os.getenv('OVERWRITE')}")
-    print(os.getenv('SEPERATOR') * 50)
+    logging.info(f"欢迎使用LingData v{DEFAULT_CONFIG_DICT['VERSION']}")
+    logging.info(f"当前时间：{formatted_date}")
+    logging.info(f"项目名称：{os.getenv('PROJECT_NAME')}")
+    logging.info(f"数据保存路径：{os.getenv('SAVE_DIR')}")
+    logging.info(f"数据源路径：{os.getenv('DATA_ROOT')}")
+    logging.info(f"模型API地址：{os.getenv('LLM_API_BASE')}")
+    logging.info(f"模型API密钥：{os.getenv('LLM_API_KEY')}")
+    logging.info(f"是否显示日志：{os.getenv('SHOW_LOG')}")
+    logging.info(f"是否保存结果：{os.getenv('SAVE_RESULTS')}")
+    logging.info(f"是否保存参数文件：{os.getenv('SAVE_ARGS')}")
+    logging.info(f"分隔符：{os.getenv('SEPERATOR')}")
+    logging.info(f"是否覆盖结果：{os.getenv('OVERWRITE')}")
+    logging.info(os.getenv('SEPERATOR') * 50)
 
 
 class LingData:
@@ -60,26 +64,35 @@ class LingData:
         self.mk_dir()
         self.save_args()
 
-    def read_env_args(self):
+    def read_env_args(self) -> None:
         from src.environ import get_environ_processor
         keys = list(self.builders_args.keys())
         if self.builders_args[keys[0]]['type'].split('_')[0] == 'environ':
             environ_processor = get_environ_processor(self.builders_args[keys[0]]['type'])
             environ_processor(self.builders_args[keys[0]])
-            print('已设置环境变量')
+            logging.info('已设置环境变量')
         else:
+            logging.error("未找到environ参数")
             raise ValueError("未找到environ参数")
 
-    def read_databuilder_args(self):
+    def read_databuilder_args(self) -> dict | None:
         try:
             with open(self.databuilder_args_path, 'r', encoding='utf-8') as f:
                 databuilder_args = json.load(f)
                 return databuilder_args
         except Exception as e:
-            print(f"读取{self.databuilder_args_path}错误：", e)
+            logging.error(f"读取{self.databuilder_args_path}错误：" + str(e))
             return None
 
-    def get_processors(self):
+    @staticmethod
+    def get_processor(processor_type, get_processor_func) -> callable:
+        try:
+            return get_processor_func(processor_type)
+        except Exception as e:
+            logging.error(f"读取{processor_type}错误："+ str(e))
+            return None
+
+    def get_processors(self) -> dict:
         from src.reader import get_reader
         from src.spliter import get_spliter
         from src.dataset import get_dataset_builder
@@ -87,65 +100,37 @@ class LingData:
         from src.custom import get_custom_processor
         from src.transformer import get_transformer
 
+        processor_funcs = {
+            'reader': get_reader,
+            'spliter': get_spliter,
+            'llm': get_llm_processor,
+            'dataset': get_dataset_builder,
+            'custom': get_custom_processor,
+            'transformer': get_transformer,
+        }
+
         workers_dict = copy.deepcopy(self.builders_args)
         keys = list(workers_dict.keys())
 
         for key in keys:
             processor = self.builders_args[key]['type']
-            if processor.split('_')[0] == 'reader':
-                try:
-                    reader = get_reader(processor)
-                    workers_dict[key]['processor'] = reader
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
+            processor_type = processor.split('_')[0]
+            get_processor_func = processor_funcs.get(processor_type)
 
-            elif processor.split('_')[0] == 'spliter':
-                try:
-                    spliter = get_spliter(processor)
-                    workers_dict[key]['processor'] = spliter
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
-
-            elif processor.split('_')[0] == 'llm':
-                try:
-                    llm = get_llm_processor(processor)
-                    workers_dict[key]['processor'] = llm
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
-
-            elif processor.split('_')[0] == 'dataset':
-                try:
-                    writer = get_dataset_builder(processor)
-                    workers_dict[key]['processor'] = writer
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
-
-            elif processor.split('_')[0] == 'custom':
-                try:
-                    custom = get_custom_processor(processor)
-                    workers_dict[key]['processor'] = custom
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
-
-            elif processor.split('_')[0] == 'transformer':
-                try:
-                    transformer = get_transformer(processor)
-                    workers_dict[key]['processor'] = transformer
-                except Exception as e:
-                    print(f"读取{processor}错误：", e)
-
-            elif processor.split('_')[0] == 'environ':
+            if get_processor_func:
+                workers_dict[key]['processor'] = self.get_processor(processor, get_processor_func)
+            elif processor_type == 'environ':
                 workers_dict[key]['processor'] = 'no_run'
-
             else:
+                logging.error(f"未注册{processor}")
                 raise KeyError(f"未注册{processor}")
 
         return workers_dict
 
     @staticmethod
-    def extract_source(source):
+    def extract_source(source) -> tuple:
         import re
-        match = re.match(r"(\w+)(?:\[(\d+):(\d+)\])?", source)
+        match = re.match(r"^\s*(\w+)\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*$", source)
         if match:
             name = match.group(1)  # 提取 'spliter'
             if match.group(2) and match.group(3):  # 确保数字存在
@@ -154,7 +139,7 @@ class LingData:
                 return name, start_index, end_index
             return name, None, None
 
-    def run(self, worker):
+    def run(self, worker) -> dict:
         processor = self.workers_dict[worker]['processor']
         if processor == 'no_run':
             return self.workers_dict[worker]
@@ -166,6 +151,7 @@ class LingData:
             if type(source) is str:
                 source = [source]
             elif type(source) is not list:
+                logging.error(f"{worker}的source数据类型错误：{source}")
                 raise ValueError(f"{worker}的source数据类型错误：{source}")
             for s in source:
                 source_name, start, end = self.extract_source(s)
@@ -181,32 +167,32 @@ class LingData:
         self.workers_dict[worker]['results'] = processor(worker_dict)  # 运行processor
 
         if os.getenv('SHOW_LOG') == 'true':
-            print(f"{worker}运行完成")
+            logging.info(f"{worker}运行完成")
 
         if self.workers_dict[worker].get('save_result') is None:
-            save_result = os.getenv('SAVE_RESULTS', default='true')
+            save_result = os.getenv('SAVE_RESULTS', default='true') == 'true'
         else:
-            save_result = str(self.workers_dict[worker].get('save_result')).lower()
+            save_result = str(self.workers_dict[worker].get('save_result')).lower() == 'true'
             self.mk_dir(save_result)
         if save_result == 'true':
             try:
                 self.save_result(worker)
             except Exception as e:
-                print(f"保存{worker}结果错误：", e)
+                logging.error(f"保存{worker}结果错误：" + str(e))
 
         return self.workers_dict[worker]
 
-    def run_all(self):
+    def run_all(self) -> dict:
         for key in self.workers_dict:
             try:
                 self.run(key)
             except Exception as e:
-                print(f"运行{key}错误：", e)
-        print(f"已全部运行完成")
+                logging.error(f"运行{key}错误：" + str(e))
+        logging.info(f"已全部运行完成")
         return self.workers_dict
 
-    @ staticmethod
-    def preprocess_results(results):
+    @staticmethod
+    def preprocess_results(results) -> list:
         # 处理整个列表，确保每个元素都被转换
         processed_results = []
         for sublist in results:
@@ -218,7 +204,8 @@ class LingData:
                     processed_item = []
                     for subitem in item:
                         if isinstance(subitem, Exception):
-                            processed_item.append("Exception: " + str(subitem))
+                            exception_type = type(subitem).__name__
+                            processed_item.append({str(exception_type): str(subitem)})
                         else:
                             processed_item.append(subitem)
                     new_sublist.append(processed_item)
@@ -227,18 +214,20 @@ class LingData:
                     processed_list = []
                     for list_item in item:
                         if isinstance(list_item, Exception):
-                            processed_list.append("Exception: " + str(list_item))
+                            exception_type = type(list_item).__name__
+                            processed_list.append({str(exception_type): str(list_item)})
                         else:
                             processed_list.append(list_item)
                     new_sublist.append(processed_list)
                 elif isinstance(item, Exception):
-                    new_sublist.append("Exception: " + str(item))
+                    exception_type = type(item).__name__
+                    new_sublist.append({str(exception_type): str(item)})
                 else:
                     new_sublist.append(item)
             processed_results.append(new_sublist)
         return processed_results
 
-    def save_result(self, worker):
+    def save_result(self, worker) -> None:
         save_dir = os.getenv('SAVE_DIR')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -248,9 +237,9 @@ class LingData:
         save_path = os.path.join(save_dir, f"{worker}.json")
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(preprocess_results, f, ensure_ascii=False, indent=4)
-        print(f"{worker}结果已保存至{save_dir}")
+        logging.info(f"{worker}结果已保存至{save_dir}")
 
-    def save_results(self):
+    def save_results(self) -> None:
         save_dir = self.builders_args.get('SAVE_ROOT', DEFAULT_CONFIG_DICT['SAVE_ROOT'])
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -260,9 +249,9 @@ class LingData:
             save_path = os.path.join(save_dir, f"{key}.json")
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(results, f, ensure_ascii=False, indent=4)
-        print(f"结果已保存至{save_dir}")
+        logging.info(f"结果已保存至{save_dir}")
 
-    def save_args(self):
+    def save_args(self) -> None:
         if os.getenv('SAVE_ARGS') == 'true':
             save_dir = os.getenv('SAVE_DIR')
             if not os.path.exists(save_dir):
@@ -271,12 +260,14 @@ class LingData:
             save_path = os.path.join(save_dir, "args.json")
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(self.builders_args, f, ensure_ascii=False, indent=4)
-            print(f"参数文件已保存至{save_path}")
+            logging.info(f"参数文件已保存至{save_path}")
 
-    def mk_dir(self, save_result="false"):
+    def mk_dir(self, save_result: bool = False) -> None:
+
         save_dir = self.builders_args.get('SAVE_ROOT', DEFAULT_CONFIG_DICT['SAVE_ROOT'])
-        save_args = os.getenv('SAVE_ARGS', default='true')
-        save_results = os.getenv('SAVE_RESULTS', default='true')
+        save_args = os.getenv('SAVE_ARGS', default='true').lower() == 'true'
+        save_results = os.getenv('SAVE_RESULTS', default='true').lower() == 'true'
+
         if save_args or save_results or save_result == 'true':
             project_name = os.getenv('PROJECT_NAME')
             dir_path = os.path.join(save_dir, project_name)
@@ -286,7 +277,6 @@ class LingData:
                 if os.getenv('OVERWRITE') == 'true':
                     os.environ['SAVE_DIR'] = dir_path
                 else:
+                    logging.warning(f"{dir_path}已存在。请设置OVERWRITE为true以覆盖")
                     raise FileExistsError(f"{dir_path}已存在。请设置OVERWRITE为true以覆盖")
             os.environ['SAVE_DIR'] = dir_path
-        else:
-            pass
